@@ -1,170 +1,217 @@
 function notificar_novo_acerto() {
-  // --- 1. CONFIGURAÇÃO ---
-  const listaDestinatarios = [
-    "oliveira.severo@gmail.com" 
-  ];
-
-  // --- 2. ACESSAR DADOS DO ACERTO (ÚLTIMA LINHA) ---
+  const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // --- CONFIGURAÇÃO ---
+  const listaDestinatarios = ["oliveira.severo@gmail.com"];
+  
   const abaAcertos = ss.getSheetByName("🤝 Acertos_Mensais_Dados_Brutos");
   const abaPassivos = ss.getSheetByName("💸 Passivos_Dados_Brutos");
-  const ui = SpreadsheetApp.getUi();
+
+  if (!abaAcertos || !abaPassivos) { ui.alert("Abas não encontradas!"); return; }
 
   const ultimaLinha = abaAcertos.getLastRow();
-  if (ultimaLinha < 2) {
-    ui.alert("A tabela de acertos está vazia.");
-    return;
+  if (ultimaLinha < 2) { ui.alert("Tabela vazia."); return; }
+
+  // --- FUNÇÃO PARA LIMPAR ACENTOS (O SEGREDO DO "MARCO" vs "MARÇO") ---
+  function normalizar(texto) {
+    return String(texto)
+      .toLowerCase()
+      .trim()
+      .normalize("NFD") // Separa os acentos das letras
+      .replace(/[\u0300-\u036f]/g, ""); // Remove os acentos
   }
 
-  // Pega dados do Acerto
-  const mesAcerto = abaAcertos.getRange(ultimaLinha, 1).getValue();
-  const anoAcerto = abaAcertos.getRange(ultimaLinha, 2).getValue();
-  const valorFormatado = abaAcertos.getRange(ultimaLinha, 3).getDisplayValue(); 
-  const chavePix = abaAcertos.getRange(ultimaLinha, 5).getValue(); 
+  // Dados do Acerto
+  const mesAcerto = normalizar(abaAcertos.getRange(ultimaLinha, 1).getValue()); // Normaliza aqui
+  const anoAcerto = String(abaAcertos.getRange(ultimaLinha, 2).getValue()).trim();
+  const valorFormatado = abaAcertos.getRange(ultimaLinha, 3).getDisplayValue();
+  const chavePix = abaAcertos.getRange(ultimaLinha, 5).getValue();
 
-  // --- 3. BUSCAR DETALHES E ANEXOS (PASSIVOS) ---
-  const rangePassivos = abaPassivos.getDataRange();
-  const dadosPassivos = rangePassivos.getValues();
-  const richTextPassivos = rangePassivos.getRichTextValues(); // Necessário para pegar o link do emoji
+  // --- BUSCA NA TABELA PASSIVOS ---
+  const dados = abaPassivos.getDataRange().getValues();
+  const dadosRicos = abaPassivos.getDataRange().getRichTextValues();
 
-  let htmlListaDespesas = "";
-  let anexosArquivos = []; // Array para guardar os arquivos reais
+  let htmlLista = "";
+  let anexos = [];
+
+  // Apenas para ver no log se funcionou
+  const mesOriginal = abaAcertos.getRange(ultimaLinha, 1).getValue();
+  console.log(`Buscando: "${mesOriginal}" (lido como: "${mesAcerto}") / ${anoAcerto}`);
 
   // Loop começa do 1 para pular cabeçalho
-  for (let i = 1; i < dadosPassivos.length; i++) {
-    const linha = dadosPassivos[i];
-    const mesPassivo = linha[0];
-    const anoPassivo = linha[1];
-    const servico = linha[2];
-    const valor = linha[3];
-
-    // Verifica se é do mesmo Mês e Ano
-    if (String(mesPassivo).toLowerCase() === String(mesAcerto).toLowerCase() && 
-        String(anoPassivo) === String(anoAcerto)) {
+  for (let i = 1; i < dados.length; i++) {
+    // Índices: Col A[0]=Mês | Col B[1]=Ano | Col C[2]=Serviço | Col D[3]=Valor | Col E[4]=RECIBO
+    
+    // Normaliza o mês da tabela Passivos também (Marco vira marco)
+    let mesPassivo = normalizar(dados[i][0]);
+    let anoPassivo = String(dados[i][1]).trim();
+    
+    // Agora a comparação funciona mesmo se for "Março" vs "Marco"
+    if (mesPassivo === mesAcerto && anoPassivo === anoAcerto) {
       
-      // 3.1. Adiciona à lista visual do e-mail
-      let valFormatado = parseFloat(valor).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
-      htmlListaDespesas += `<li style="margin-bottom: 5px;"><strong>${servico}:</strong> ${valFormatado}</li>`;
+      let servico = dados[i][2]; 
+      let valor = parseFloat(dados[i][3]).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+      
+      htmlLista += `<li><strong>${servico}:</strong> ${valor}</li>`;
 
-      // 3.2. EXTRAI O ANEXO DO DRIVE
-      // A coluna do recibo é a índice 4 (Coluna E)
-      const celulaRichText = richTextPassivos[i][4];
-      const urlRecibo = celulaRichText ? celulaRichText.getLinkUrl() : null;
+      // --- EXTRAÇÃO DO LINK DA COLUNA E (ÍNDICE 4) ---
+      let celulaRica = dadosRicos[i][4]; 
+      let url = celulaRica ? celulaRica.getLinkUrl() : null;
 
-      if (urlRecibo && urlRecibo.includes("id=")) {
-        const idDoc = urlRecibo.split("id=")[1];
+      // Fallback (se não for RichText, tenta texto puro)
+      if (!url && String(dados[i][4]).includes("http")) {
+        url = dados[i][4];
+      }
+
+      if (url) {
         try {
-          const arquivo = DriveApp.getFileById(idDoc);
-          const blob = arquivo.getBlob();
-          // Renomeia o arquivo para facilitar: "CEMIG - NomeOriginal.pdf"
-          blob.setName(`${servico} - ${arquivo.getName()}`); 
-          anexosArquivos.push(blob);
+          // Limpeza do ID
+          let idArquivo = "";
+          if (url.includes("id=")) idArquivo = url.split("id=")[1].split("&")[0];
+          else if (url.includes("/d/")) idArquivo = url.split("/d/")[1].split("/")[0];
+
+          if (idArquivo) {
+            let arquivo = DriveApp.getFileById(idArquivo);
+            let blob = arquivo.getBlob();
+            blob.setName(`${servico} - Comprovante.pdf`);
+            anexos.push(blob);
+            console.log(`✅ Anexo encontrado: ${servico}`);
+          }
         } catch (e) {
-          console.log(`Erro ao baixar anexo de ${servico}: ` + e.message);
+          console.log(`❌ Erro anexo ${servico}: ` + e.message);
         }
       }
     }
   }
 
-  if (htmlListaDespesas === "") htmlListaDespesas = "<li><em>Sem detalhes lançados.</em></li>";
-
-  // --- 4. PREPARAÇÃO DO QR CODE (IMAGEM INLINE) ---
-  const cellQr = abaAcertos.getRange(ultimaLinha, 4);
-  let idQrCode = "";
+  // --- E-MAIL ---
+  if (htmlLista === "") htmlLista = "<li>Nenhum detalhe encontrado.</li>";
   
-  // Lógica para pegar ID do QR Code (seja link ou fórmula)
-  const rtQr = cellQr.getRichTextValue();
-  const urlQr = rtQr ? rtQr.getLinkUrl() : "";
-  const formulaQr = cellQr.getFormula();
-  const matchFormula = formulaQr ? formulaQr.match(/id=([a-zA-Z0-9_-]+)/) : null;
+  // QR Code (Aba Acertos, Coluna D -> Índice 4 no getRange)
+  let qrCodeBlob = null;
+  let qrCodeInline = {};
+  try {
+    let cellQr = abaAcertos.getRange(ultimaLinha, 4);
+    let qrUrl = cellQr.getRichTextValue() ? cellQr.getRichTextValue().getLinkUrl() : null;
+    if (!qrUrl && String(cellQr.getValue()).includes("http")) qrUrl = cellQr.getValue();
 
-  if (urlQr && urlQr.includes("id=")) idQrCode = urlQr.split("id=")[1];
-  else if (matchFormula && matchFormula[1]) idQrCode = matchFormula[1];
-  else if (typeof cellQr.getValue() === 'string' && cellQr.getValue().includes("id=")) idQrCode = cellQr.getValue().split("id=")[1];
-
-  let blobQrCode = null;
-  let imagensInline = {}; 
-  if (idQrCode) {
-    try {
-      blobQrCode = DriveApp.getFileById(idQrCode).getBlob().setName("qrcode.png");
-      imagensInline = { qrCodeImagem: blobQrCode }; 
-    } catch (e) { console.log("Erro imagem QR Code"); }
-  }
-  const linkDiretoQr = idQrCode ? `https://drive.google.com/open?id=${idQrCode}` : "#";
-
-  // --- 5. CONFIRMAÇÃO ---
-  const resposta = ui.alert(
-    `Confirmar Envio`,
-    `Enviar para: ${listaDestinatarios.join(", ")}\n` +
-    `Referência: ${mesAcerto}/${anoAcerto}\n` +
-    `Total: ${valorFormatado}\n` +
-    `Anexos encontrados: ${anexosArquivos.length} arquivos`,
-    ui.ButtonSet.YES_NO
-  );
-
-  if (resposta !== ui.Button.YES) return;
-
-  // --- 6. MONTAGEM E ENVIO ---
-  const assunto = `🔔 Rateio Pampulha: ${mesAcerto}/${anoAcerto} (+ Comprovantes)`;
-
-  const corpoEmail = `
-    <div style="font-family: Arial, sans-serif; color: #333; max-width: 500px;">
-      <h2 style="color: #1155cc;">Rateio Disponível: ${mesAcerto}/${anoAcerto}</h2>
+    if (qrUrl) {
+      let idQr = "";
+      if (qrUrl.includes("id=")) idQr = qrUrl.split("id=")[1].split("&")[0];
+      else if (qrUrl.includes("/d/")) idQr = qrUrl.split("/d/")[1].split("/")[0];
       
-      <div style="background-color: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
-        <p style="font-size: 18px; margin: 0;">Valor Individual:</p>
-        <p style="font-size: 24px; font-weight: bold; color: #008000; margin: 5px 0;">${valorFormatado}</p>
-      </div>
+      if (idQr) {
+        qrCodeBlob = DriveApp.getFileById(idQr).getBlob().setName("qrcode.png");
+        qrCodeInline = { qrImagem: qrCodeBlob };
+      }
+    }
+  } catch(e) { console.log("Sem QR Code"); }
 
-      <br>
+  // Confirmação
+  const confirma = ui.alert(`Confirmar Envio`, 
+    `Mês: ${mesAcerto}/${anoAcerto}\nAnexos encontrados: ${anexos.length}`, 
+    ui.ButtonSet.YES_NO);
+  
+  if (confirma !== ui.Button.YES) return;
 
-      <div style="border: 1px solid #eee; padding: 10px; border-radius: 5px;">
-        <p style="margin-top: 0;"><strong>📋 Composição dos Gastos:</strong></p>
-        <ul style="padding-left: 20px; color: #555;">
-          ${htmlListaDespesas}
-        </ul>
-        <p style="font-size: 12px; color: #888;">📎 <em>Os comprovantes originais estão anexados a este e-mail.</em></p>
-      </div>
+  const htmlBody = `
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6f6; padding:20px 0;">
+    <tr>
+      <td align="center">
 
-      <br>
+        <!-- CONTAINER -->
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:8px; font-family:Arial,sans-serif; color:#333;">
+          
+          <!-- CABEÇALHO -->
+          <tr>
+            <td style="padding:24px; text-align:center;">
+              <h2 style="margin:0; color:#00008B;">
+                Contas da Pampulha · ${mesOriginal}/${anoAcerto}
+              </h2>
+            </td>
+          </tr>
 
-      <p><strong>1. Pagamento via QR Code:</strong></p>
-      <div style="text-align: center; margin: 10px 0;">
-        ${blobQrCode ? 
-          `<img src="cid:qrCodeImagem" style="width: 200px; height: 200px; border: 1px solid #ccc; padding: 5px;">` : 
-          `<p style="color: #666;">(Imagem não carregada)</p>`
-        }
-        <br>
-        <a href="${linkDiretoQr}" style="font-size: 14px; color: #1155cc;">🔗 Link alternativo do QR Code</a>
-      </div>
+          <!-- VALOR -->
+          <tr>
+            <td style="padding:16px 24px;">
+              <div style="background:#f1f1f1; padding:14px; border-radius:6px; text-align:center;">
+                <span style="font-size:16px;">
+                  Valor da cota individual:
+                  <strong>${valorFormatado}</strong>
+                </span>
+              </div>
+            </td>
+          </tr>
 
-      <p><strong>2. Pix Copia e Cola:</strong></p>
-      <div style="background-color: #eee; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; word-break: break-all; color: #000;">
-        ${chavePix || "Chave não detectada"}
-      </div>
+          <!-- DETALHAMENTO -->
+          <tr>
+            <td style="padding:16px 24px;">
+              <h4 style="margin:0 0 8px 0;">Detalhamento</h4>
+              <ul style="margin:0; padding-left:20px;">
+                ${htmlLista}
+              </ul>
+              <p style="font-size:12px; color:#666; margin-top:12px;">
+                📎 <em>Os comprovantes seguem anexos.</em>
+              </p>
+            </td>
+          </tr>
 
-      <br><hr>
-      <p style="font-size: 11px; color: #888;">Gestão Pampulha Automática</p>
-    </div>
+          <!-- BLOCO PIX -->
+          <tr>
+            <td style="background:#f5f6f6; padding:32px 24px; text-align:center;">
+
+              <p style="font-size:16px; font-weight:700; margin:0 0 8px 0; color:#041e18;">
+                Pix QR Code
+              </p>
+              <p style="font-size:14px; margin:0 0 24px 0; color:#041e18;">
+                Leia o QR Code usando seu aplicativo de pagamento.
+              </p>
+
+              ${qrCodeBlob ? `
+                <img src="cid:qrImagem"
+                    width="180"
+                    alt="QR Code Pix"
+                    style="display:block; margin:0 auto 24px auto; border:1px solid #ccc;">
+              ` : ''}
+
+              <p style="font-size:16px; font-weight:700; margin:0 0 8px 0; color:#041e18;">
+                Pix Copia e Cola
+              </p>
+              <p style="font-size:14px; margin:0 0 16px 0; color:#041e18;">
+                No aplicativo do seu banco, selecione Pix Copia e Cola e insira o código abaixo.
+              </p>
+
+              <div style="background:#ffffff; border:1px solid #b1b9b7; border-radius:8px; padding:16px; text-align:left;">
+                <p style="margin:0; font-size:14px; line-height:20px; word-break:break-all; color:#041e18;">
+                  ${chavePix}
+                </p>
+              </div>
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
   `;
 
-  let contagemSucesso = 0;
+
   listaDestinatarios.forEach(email => {
     try {
       MailApp.sendEmail({
         to: email,
-        subject: assunto,
-        htmlBody: corpoEmail,
-        inlineImages: imagensInline,
-        attachments: anexosArquivos // <--- AQUI VÃO OS COMPROVANTES
+        subject: `[ 💸 Pampulha ] | Contas de ${mesOriginal}/${anoAcerto}`,
+        htmlBody: htmlBody,
+        inlineImages: qrCodeInline,
+        attachments: anexos
       });
-      contagemSucesso++;
     } catch (e) {
-      ui.alert(`❌ Erro ao enviar para ${email}: ${e.message}`);
+      console.log("Erro envio: " + e.message);
     }
   });
 
-  if (contagemSucesso > 0) {
-    ui.alert(`✅ E-mail enviado com ${anexosArquivos.length} anexos!`);
-  }
+  ui.alert(`✅ E-mail enviado com ${anexos.length} anexo(s)!`);
 }

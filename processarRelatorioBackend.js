@@ -9,9 +9,15 @@ function processarRelatorioBackend(chaveData) {
   
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const abaPassivos = ss.getSheetByName("💸 Passivos_Dados_Brutos");
-  // A aba de Acertos não é mais necessária para este relatório
 
-  const fmt = (v) => parseFloat(v).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+  // --- FORMATAÇÃO REFORÇADA (Para garantir 2 casas decimais) ---
+  const fmt = (v) => parseFloat(v).toLocaleString('pt-BR', {
+    style: 'currency', 
+    currency: 'BRL', 
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2 
+  });
+
   const tratarNumero = (v) => {
     if (typeof v === 'number') return v;
     if (!v) return 0;
@@ -24,10 +30,11 @@ function processarRelatorioBackend(chaveData) {
   let somaTotalPassivos = 0;
 
   for (let i = 1; i < dadosPassivos.length; i++) {
+    // Verifica se Mês (col 0) e Ano (col 1) batem com o solicitado
     if (String(dadosPassivos[i][0]).toLowerCase() === String(mesSolicitado).toLowerCase() && 
         String(dadosPassivos[i][1]) === anoSolicitado) {
       
-      let valorItem = tratarNumero(dadosPassivos[i][3]);
+      let valorItem = tratarNumero(dadosPassivos[i][3]); // Valor na coluna 3
       somaTotalPassivos += valorItem;
       
       listaHtml += `<div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding:5px 0;">
@@ -50,7 +57,7 @@ function processarRelatorioBackend(chaveData) {
   // CÁLCULO DO RATEIO INDIVIDUAL
   let valorRateioCalculado = somaTotalPassivos / NUMERO_PESSOAS;
 
-  // --- HTML FINAL (Sem o bloco de Auditoria/QR Code) ---
+  // --- HTML FINAL ---
   let htmlFinal = `
     <div style="text-align: center; margin-bottom: 20px;">
       <h2 style="color:#1155cc; margin:0; font-size: 22px;">RELATÓRIO DE CONFERÊNCIA</h2>
@@ -62,15 +69,18 @@ function processarRelatorioBackend(chaveData) {
       <span style="font-size:28px; font-weight:bold; color:#1155cc;">
         ${fmt(valorRateioCalculado)}
       </span>
+      
       <div style="font-size:11px; color:#777; margin-top:5px;">
-        (valor dividido por ${NUMERO_PESSOAS} pessoas)
+        (${fmt(somaTotalPassivos)} dividido por ${NUMERO_PESSOAS})
       </div>
+
     </div>
 
     <div style="margin-bottom:10px; font-weight:bold; border-bottom: 2px solid #1155cc; padding-bottom: 5px; color:#333;">
       COMPOSIÇÃO DAS CONTAS
     </div>
-    <div style="font-size: 14px; min-height: 80px; max-height:250px; overflow-y:auto;">
+    
+    <div style="font-size: 14px; min-height: 80px; max-height:300px; overflow-y:auto;">
       ${listaHtml || "<p style='text-align:center; color:#999; margin-top:20px;'><em>Nenhuma despesa encontrada.</em></p>"}
     </div>
   `;
