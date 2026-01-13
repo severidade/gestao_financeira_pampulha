@@ -2,62 +2,73 @@ function abrirPainelRelatorio() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const abaPassivos = ss.getSheetByName("💸 Passivos_Dados_Brutos");
   
-  // --- LÓGICA DE DATAS ---
+  // --- LÓGICA DE DATAS E TIPOS ---
   const dados = abaPassivos.getDataRange().getValues();
   let opcoesSet = new Set();
   
-  // Mapa robusto para garantir a ordem dos meses
+  // Mapa para ordenar meses
   const mapaMeses = { 
-    "janeiro":1, "fevereiro":2, "março":3, "marco":3, // Garante com e sem cedilha
+    "janeiro":1, "fevereiro":2, "março":3, "marco":3, 
     "abril":4, "maio":5, "junho":6, 
     "julho":7, "agosto":8, "setembro":9, 
     "outubro":10, "novembro":11, "dezembro":12 
   };
 
-  // Coleta os meses e anos disponíveis (Começa do 1 para pular cabeçalho)
+  // Coleta os meses, anos e tipos disponíveis
   for (let i = 1; i < dados.length; i++) {
     let mes = dados[i][0]; // Coluna A (Mês)
     let ano = dados[i][1]; // Coluna B (Ano)
+    let indiceSuplementar = dados[i][5]; // Coluna F (Índice Suplementar)
     
     // Só adiciona se tiver mês E ano preenchidos
     if (mes && ano) {
-      // Normaliza para string e remove espaços extras
       let mesStr = String(mes).toLowerCase().trim();
       let anoStr = String(ano).trim();
-      opcoesSet.add(`${mesStr}|${anoStr}`);
+      
+      // Tratamento do Índice: Se vazio ou não numérico, assume 0
+      let indice = 0;
+      if (indiceSuplementar !== "" && indiceSuplementar !== null && !isNaN(indiceSuplementar)) {
+        indice = parseInt(indiceSuplementar);
+      }
+
+      // A chave inclui o índice: "janeiro|2026|0" ou "janeiro|2026|1"
+      opcoesSet.add(`${mesStr}|${anoStr}|${indice}`);
     }
   }
 
   let listaOpcoes = Array.from(opcoesSet);
 
-  // --- ORDENAÇÃO INVERSA (Decrescente) ---
-  // Lógica: Ano maior vem primeiro. Se o ano for igual, Mês maior vem primeiro.
+  // --- ORDENAÇÃO DECRESCENTE TOTAL ---
   listaOpcoes.sort((a, b) => {
-    let [mesA, anoA] = a.split("|");
-    let [mesB, anoB] = b.split("|");
+    let [mesA, anoA, indA] = a.split("|");
+    let [mesB, anoB, indB] = b.split("|");
     
-    // Converte ano para número para comparar matemática
     let valAnoA = parseInt(anoA);
     let valAnoB = parseInt(anoB);
+    let valIndA = parseInt(indA);
+    let valIndB = parseInt(indB);
     
-    // 1. Compara o Ano (Decrescente: B - A)
-    if (valAnoA !== valAnoB) {
-      return valAnoB - valAnoA; 
-    }
+    // 1. Ano: Decrescente (2026 vem antes de 2025)
+    if (valAnoA !== valAnoB) return valAnoB - valAnoA; 
     
-    // 2. Se o ano for igual, compara o Mês (Decrescente: B - A)
+    // 2. Mês: Decrescente (Fevereiro vem antes de Janeiro)
     let valMesA = mapaMeses[mesA] || 0;
     let valMesB = mapaMeses[mesB] || 0;
-    
-    return valMesB - valMesA;
+    if (valMesA !== valMesB) return valMesB - valMesA;
+
+    // 3. Índice: DECRESCENTE (Extra 2 vem antes de Extra 1, que vem antes de Padrão)
+    // MUDANÇA AQUI: Era A - B, agora é B - A
+    return valIndB - valIndA;
   });
 
-  // Gera o HTML das opções
+  // Gera o HTML das opções com o texto descritivo correto
   let htmlOptions = listaOpcoes.map(item => {
-    let [mes, ano] = item.split("|");
-    // Capitaliza a primeira letra do mês para ficar bonito no menu
+    let [mes, ano, indice] = item.split("|");
+    
     let mesFormatado = mes.charAt(0).toUpperCase() + mes.slice(1);
-    return `<option value="${mes}|${ano}">${mesFormatado} / ${ano}</option>`;
+    let textoTipo = (indice == "0") ? "" : `(Cobrança extra ${indice})`;
+
+    return `<option value="${mes}|${ano}|${indice}">${mesFormatado} / ${ano} ${textoTipo}</option>`;
   }).join("");
 
   if (htmlOptions === "") {
@@ -74,34 +85,23 @@ function abrirPainelRelatorio() {
         <style>
           body { font-family: 'Segoe UI', sans-serif; padding: 0; margin: 0; background-color: #f4f4f4; }
           .container { padding: 20px; }
-          
           .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-top: 10px; }
-          
           h2 { color: #333; margin-top: 0; text-align: center; }
           label { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
-          
           select { width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 6px; border: 1px solid #ccc; font-size: 16px; background: #fff; }
-          
           .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; transition: 0.3s; margin-bottom: 10px; }
-          
           .btn-primary { background-color: #1155cc; color: white; }
           .btn-primary:hover { background-color: #0d47a1; }
-          
           .btn-form { background-color: #673AB7; color: white; }
           .btn-form:hover { background-color: #512DA8; }
-
           .btn-success { background-color: #4CAF50; color: white; }
           .btn-success:hover { background-color: #45a049; }
-          
           .btn-secondary { background-color: #fff; color: #555; border: 1px solid #ccc; }
           .btn-secondary:hover { background-color: #eee; }
-
           .loading { display: none; text-align: center; color: #666; margin-top: 20px; }
           .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0,0,0,.1); border-radius: 50%; border-top-color: #1155cc; animation: spin 1s ease-in-out infinite; vertical-align: middle; margin-right: 10px; }
           @keyframes spin { to { transform: rotate(360deg); } }
-
           #tela-relatorio { display: none; } 
-
           @media print {
             body { background: white; }
             .card { box-shadow: none; padding: 0; margin: 0; }
@@ -116,7 +116,7 @@ function abrirPainelRelatorio() {
           <div class="card">
             <h2>📊 Conferência Mensal</h2>
             <br>
-            <label for="seletorData">Selecione o período:</label>
+            <label for="seletorData">Selecione o Ciclo de Cobrança:</label>
             <select id="seletorData">
               ${htmlOptions}
             </select>
