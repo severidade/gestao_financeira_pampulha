@@ -1,22 +1,21 @@
 /**
  * Gera o Dashboard de Relatório de Acertos (Direita)
- * - Cabeçalho: Preto com texto Branco
- * - Contas vencidas: Fundo Cinza Claro (#EEEEEE)
- * - Rodapé: Explicação sobre o status de vencimento
+ * - Aceita QUALQUER texto na coluna de status como "Enviado/Pago"
  */
 function gerarDashboardRelatorioAcertos() {
 
   // --- CONFIGURAÇÕES ---
   const nomeAbaDados = "🤝 Acertos_Mensais_Dados_Brutos";
   const nomeAbaRelatorio = "⭐ Dashboard Gestão";
-  const linhaInicial = 2; // Onde fica o cabeçalho
+  const linhaInicial = 2; 
   const colunaInicial = 7; // Coluna G
 
   const cabecalho = [
     "Mês/Ano Referência",
     "Cobrança",
     "Vencimento",
-    "Valor Cobrado"
+    "Valor Cobrado",
+    "Enviado?" 
   ];
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -25,20 +24,25 @@ function gerarDashboardRelatorioAcertos() {
 
   if (!abaRelatorio) abaRelatorio = ss.insertSheet(nomeAbaRelatorio);
 
-  // --- 1. LIMPAR TUDO (Margem de segurança maior para o rodapé) ---
-  abaRelatorio.getRange(1, colunaInicial, 200, 4).clear();
+  // --- 1. LIMPAR TUDO ---
+  abaRelatorio.getRange(1, colunaInicial, 200, 5).clear();
 
-  // --- 2. TÍTULO (LINHA 1) ---
-  abaRelatorio.getRange(1, colunaInicial)
+  // --- 2. TÍTULO ---
+  abaRelatorio.getRange(1, colunaInicial, 1, 5) 
+    .merge()
     .setValue("🤝 Resumo de Acertos")
-    .setFontWeight("bold").setFontSize(14).setBackground("white").setFontColor("black");
+    .setFontWeight("bold")
+    .setFontSize(14)
+    .setBackground("white")
+    .setFontColor("black")
+    .setHorizontalAlignment("Left");
 
-  // --- 3. CABEÇALHO DA TABELA (LINHA 2) - ESTILO NOVO ---
-  abaRelatorio.getRange(2, colunaInicial, 1, 4)
+  // --- 3. CABEÇALHO ---
+  abaRelatorio.getRange(2, colunaInicial, 1, 5) 
     .setValues([cabecalho])
     .setFontWeight("bold")
-    .setBackground("#000000") // Fundo Preto
-    .setFontColor("#FFFFFF"); // Texto Branco
+    .setBackground("#000000") 
+    .setFontColor("#FFFFFF"); 
 
   if (!abaDados) return;
 
@@ -55,6 +59,7 @@ function gerarDashboardRelatorioAcertos() {
     const ano = linha[1];
     const vencimento = linha[2]; 
     const valorStr = linha[3]; 
+    const statusEnvio = linha[6]; // LER COLUNA G
 
     if (!mesCru || !ano) return;
 
@@ -74,7 +79,8 @@ function gerarDashboardRelatorioAcertos() {
       ano: ano,
       indice: indiceNum,
       vencimento: vencimento,
-      valor: valor
+      valor: valor,
+      status: statusEnvio
     });
   });
 
@@ -88,7 +94,7 @@ function gerarDashboardRelatorioAcertos() {
     );
   });
 
-  // --- 7. PREPARAR SAÍDA E CORES DE FUNDO ---
+  // --- 7. PREPARAR SAÍDA ---
   const saida = [];
   const matrizFundos = []; 
 
@@ -101,48 +107,43 @@ function gerarDashboardRelatorioAcertos() {
     
     let tipo = item.indice === 0 ? "Padrão" : `Extra ${item.indice}`;
     
-    let corFundo = "white"; // Padrão (Futuro)
+    let corFundo = "white"; 
 
     if (item.vencimento && item.vencimento.includes("/")) {
       const partes = item.vencimento.split("/"); 
       const dataConta = new Date(partes[2], partes[1] - 1, partes[0]);
-      
-      // Se já passou da data
-      if (dataConta < hoje) {
-        corFundo = "#EEEEEE"; // Cinza Claro
-      }
+      if (dataConta < hoje) corFundo = "#EEEEEE"; 
     }
 
-    saida.push([mesAno, tipo, item.vencimento, item.valor]);
-    matrizFundos.push([corFundo, corFundo, corFundo, corFundo]);
+    // --- LÓGICA VISUAL DO STATUS (CORRIGIDA) ---
+    let visualStatus = "-";
+    
+    // Agora aceita qualquer coisa que NÃO seja vazio e NÃO seja apenas um traço
+    if (item.status && String(item.status).trim() !== "" && String(item.status).trim() !== "-") {
+      visualStatus = "✅"; // Mostra o check para "Pago", "Enviado", "Ok", etc.
+    }
+
+    saida.push([mesAno, tipo, item.vencimento, item.valor, visualStatus]);
+    matrizFundos.push([corFundo, corFundo, corFundo, corFundo, corFundo]);
   });
 
   // --- 8. ESCREVER DADOS ---
-  // Começa na linha 3 (Título=1, Cabeçalho=2)
-  const rangeTabela = abaRelatorio.getRange(3, colunaInicial, saida.length, 4);
+  const rangeTabela = abaRelatorio.getRange(3, colunaInicial, saida.length, 5);
   
   rangeTabela.setValues(saida);
   rangeTabela.setHorizontalAlignment("left");
-  rangeTabela.setBackgrounds(matrizFundos); // Aplica o fundo cinza ou branco
+  abaRelatorio.getRange(3, colunaInicial + 4, saida.length, 1).setHorizontalAlignment("center");
+  rangeTabela.setBackgrounds(matrizFundos); 
 
-  // Formatação R$
   abaRelatorio.getRange(3, colunaInicial + 3, saida.length, 1).setNumberFormat("R$ #,##0.00");
-  
-  abaRelatorio.autoResizeColumns(colunaInicial, 4);
+  abaRelatorio.autoResizeColumns(colunaInicial, 5);
 
-  // --- 9. INSERIR RODAPÉ (DISCLAIMER) ---
-  // Calcula a linha logo após o último dado
+  // --- 9. RODAPÉ ---
   const linhaRodape = 3 + saida.length; 
-
-  const celulaRodape = abaRelatorio.getRange(linhaRodape, colunaInicial, 1, 4);
+  const celulaRodape = abaRelatorio.getRange(linhaRodape, colunaInicial, 1, 5);
   celulaRodape
-    .merge() // Mescla as 4 colunas
+    .merge() 
     .setValue("Linhas em cinza indicam que a data de vencimento já passou, mas não confirmam o pagamento.")
-    .setFontSize(8)          // Letra menor
-    .setFontStyle("italic")  // Itálico
-    .setFontColor("#333") // Texto cinza escuro
-    .setBackground("white")  // Fundo branco para destacar do resto
-    .setHorizontalAlignment("left")
-    .setVerticalAlignment("middle")
-    .setWrap(true);          // Quebra de texto se ficar muito longo
+    .setFontSize(8).setFontStyle("italic").setFontColor("#333") 
+    .setBackground("white").setHorizontalAlignment("left").setVerticalAlignment("middle").setWrap(true);          
 }
