@@ -2,57 +2,56 @@ function onOpen() {
   const ui = SpreadsheetApp.getUi();
   
   ui.createMenu('❤️ Gestão Pampulha')
-      // --- BLOCO DE CADASTROS (FORMS) ---
+      // --- 1. CADASTROS (Entrada de Dados) ---
       .addItem('💸 Cadastrar Passivo', 'abrirFormularioPassivos')
-      .addItem('💰 Cadastrar Fluxo de Caixa', 'abrirFormularioFluxo')
       .addItem('🤝 Cadastrar Acerto Mensal', 'abrirFormularioAcerto')
+      .addItem('💰 Cadastrar Fluxo de Caixa', 'abrirFormularioFluxo')
       .addSeparator()
       
-      // --- BLOCO DE ATUALIZAÇÃO INDIVIDUAL ---
+      // --- 2. ATUALIZAÇÕES (Processamento de Dados) ---
       .addItem('💸 Atualizar Tabela Passivos', 'gestao_pampulha_passivos_dados_brutos')
-      .addItem('💰 Atualizar Tabela Fluxo de Caixa', 'gestao_pampulha_fluxo_caixa_dados_brutos')
       .addItem('🤝 Atualizar Tabela Acertos Mensais', 'gestao_pampulha_acertos_mensais_dados_brutos')
+      .addItem('💰 Atualizar Tabela Fluxo de Caixa', 'gestao_pampulha_fluxo_caixa_dados_brutos')
+      .addItem('🔄 Atualizar Todas as Tabelas', 'atualizar_tudo') // <--- Agora está junto aqui
       .addSeparator() 
       
-      // --- BLOCO GERAL ---
-      .addItem('🔄 Atualizar TUDO', 'atualizar_tudo')
+      // --- 3. RELATÓRIOS (Conferência) ---
+      .addItem('📋 Passivos Relatório de Conferência', 'abrirPainelRelatorioPassivos')
       .addSeparator() 
-      .addItem('📋 Relatório de Conferência', 'abrirPainelRelatorio')
-      .addSeparator() 
-      .addItem('📧 Enviar E-mail (Último Acerto)', 'notificar_novo_acerto')
+      
+      // --- 4. AÇÕES FINAIS (Comunicação) ---
+      // .addItem('📧 Enviar E-mail (Último Acerto)', 'notificar_novo_acerto')
+      .addItem('📧 E-mail Cobrança', 'abrirPainelSelecaoEmail')
       .addToUi();
 }
 
-// Função "Mestra" que roda as três funções em sequência com tratamento de erro detalhado
+// Função "Mestra" (Mantida a ordem lógica Passivos -> Acertos -> Fluxo)
 function atualizar_tudo() {
   const ui = SpreadsheetApp.getUi();
   
-  // 1. Roda Passivos
-  try {
-    gestao_pampulha_passivos_dados_brutos(); 
-  } catch (e) {
-    ui.alert("Erro ao atualizar Passivos: " + e.message);
-    return; // Para o script se der erro aqui
-  }
+  // 1. Passivos
+  try { gestao_pampulha_passivos_dados_brutos(); } 
+  catch (e) { ui.alert("Erro Passivos: " + e.message); return; }
 
-  // 2. Roda Fluxo de Caixa
-  try {
-    gestao_pampulha_fluxo_caixa_dados_brutos(); 
-  } catch (e) {
-    ui.alert("Erro ao atualizar Fluxo de Caixa: " + e.message);
-    return; // Para o script se der erro aqui
-  }
+  // 2. Acertos Mensais
+  try { gestao_pampulha_acertos_mensais_dados_brutos(); } 
+  catch (e) { ui.alert("Erro Acertos: " + e.message); return; }
 
-  // 3. Roda Acertos Mensais
-  try {
-    gestao_pampulha_acertos_mensais_dados_brutos(); 
-  } catch (e) {
-    ui.alert("Erro ao atualizar Acertos Mensais: " + e.message);
-    return; // Para o script se der erro aqui
-  }
+  // 3. Fluxo de Caixa
+  try { gestao_pampulha_fluxo_caixa_dados_brutos(); } 
+  catch (e) { ui.alert("Erro Fluxo: " + e.message); return; }
 
-  // 4. Avisa que acabou
-  ui.alert("✅ Sucesso! Todas as tabelas foram atualizadas.");
+  // 4. Resumo de Conferência (Tabela Esquerda) -> NOME NOVO AQUI
+  try { 
+    gerarDashboardRelatorioPassivos(); 
+  } catch (e) { ui.alert("Erro Resumo Dashboard: " + e.message); return; }
+
+  // 5. Links de Pagamento (Tabela Direita)
+  try { 
+    gerarDashboardRelatorioAcertos(); 
+  } catch (e) { ui.alert("Erro Links Dashboard: " + e.message); return; }
+
+  ui.alert("✅ Sucesso! Todas as tabelas e o Dashboard foram atualizados.");
 }
 
 // --- FUNÇÕES DE ABERTURA DOS FORMULÁRIOS ---
@@ -61,12 +60,12 @@ function abrirFormularioPassivos() {
   abrirJanelaForms("https://forms.gle/m11gLWD4FZZ1Gykq7", "Cadastrar Passivo");
 }
 
-function abrirFormularioFluxo() {
-  abrirJanelaForms("https://forms.gle/EELc6Jq3Y71sAco1A", "Cadastrar Fluxo de Caixa");
-}
-
 function abrirFormularioAcerto() {
   abrirJanelaForms("https://forms.gle/8NoSATgZ5A9L6Gvw8", "Cadastrar Acerto Mensal");
+}
+
+function abrirFormularioFluxo() {
+  abrirJanelaForms("https://forms.gle/EELc6Jq3Y71sAco1A", "Cadastrar Fluxo de Caixa");
 }
 
 // --- FUNÇÃO AUXILIAR PARA GERAR A JANELA HTML ---

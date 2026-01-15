@@ -17,12 +17,34 @@ function gestao_pampulha_acertos_mensais_dados_brutos() {
 
   // --- ESTILOS ---
   const estiloNormal = SpreadsheetApp.newTextStyle().setUnderline(false).setForegroundColor("black").build();
-  const estiloLink = SpreadsheetApp.newTextStyle().setUnderline(true).setForegroundColor("#1155cc").build();
+  const estiloLink = SpreadsheetApp.newTextStyle().setUnderline(true).setForegroundColor("#1155cc").build(); 
+  // Removi o estiloNegrito pois não será mais usado
 
   // --- FUNÇÕES AJUDANTES ---
-  function tratarValor(valorStr) {
+function tratarValor(valorStr) {
     if (!valorStr) return 0;
-    let numero = parseFloat(valorStr.toString().replace(',', '.').replace(/[^\d.-]/g, ''));
+    
+    // Converte para string para garantir
+    let v = valorStr.toString().trim();
+    
+    // Se for apenas número (ex: 100), retorna direto
+    if (!isNaN(v) && !v.includes(',') && !v.includes('.')) {
+        return parseFloat(v);
+    }
+
+    // LÓGICA DE DETECÇÃO:
+    // Se tiver vírgula, assumimos que é decimal PT-BR (133,33)
+    if (v.includes(',')) {
+        // Remove R$ e pontos de milhar, troca vírgula por ponto
+        v = v.replace("R$", "").replace(/\./g, "").replace(",", ".");
+    } 
+    // Se tiver ponto e NÃO tiver vírgula, assumimos que é decimal EN (133.33)
+    else if (v.includes('.')) {
+        // Remove R$ apenas (mantém o ponto como decimal)
+        v = v.replace("R$", "");
+    }
+
+    let numero = parseFloat(v);
     return isNaN(numero) ? 0 : numero;
   }
 
@@ -40,91 +62,118 @@ function gestao_pampulha_acertos_mensais_dados_brutos() {
 
   // --- PROCESSAMENTO ---
   
-  // 1. LIMPEZA IMEDIATA: Garante que apaga dados antigos antes de qualquer checagem
+  // 1. LIMPEZA
   abaDestino.clear();
+  SpreadsheetApp.flush();
 
   const dadosOrigem = abaOrigem.getDataRange().getDisplayValues(); 
   
-  // Prepara os arrays de saída
   const saidaRichText = [];
-  const valoresNumericos = [ ["Valor"] ]; // Título da coluna numérica
+  const valoresNumericos = [ ["Valor"] ]; 
   
-  // Monta o Cabeçalho (Isso garante que a tabela sempre tenha títulos, mesmo vazia)
-  const cabecalho = ["Mês Ref.", "Ano", "Valor", "QR Code", "Chave Pix"].map(txt => 
+  // 2. CABEÇALHO (6 Colunas)
+  const titulos = ["Mês Ref.", "Ano", "Vencimento", "Valor", "QR Code", "Chave Pix"];
+  
+  // MUDANÇA AQUI: Usa estiloNormal em vez de estiloNegrito
+  const cabecalho = titulos.map(txt => 
     SpreadsheetApp.newRichTextValue().setText(txt).setTextStyle(estiloNormal).build()
   );
   saidaRichText.push(cabecalho);
 
-  // 2. SÓ PROCESSA SE TIVER DADOS (Mais de 1 linha)
+  // 3. PROCESSA DADOS
   if (dadosOrigem.length >= 2) {
     
     let linhasDados = dadosOrigem.slice(1);
 
-    // ORDENAÇÃO
+    // ORDENAÇÃO: Ano -> Mês -> Suplementar
     linhasDados.sort(function(a, b) {
       const anoA = parseInt(a[2]) || 0;
       const anoB = parseInt(b[2]) || 0;
+      if (anoA !== anoB) return anoA - anoB; 
+      
       const mesA = obterNumeroMes(a[1]);
       const mesB = obterNumeroMes(b[1]);
+      if (mesA !== mesB) return mesA - mesB;
 
-      if (anoA !== anoB) return anoA - anoB; 
-      return mesA - mesB;   
+      const supA = parseInt(a[6]) || 0;
+      const supB = parseInt(b[6]) || 0;
+      return supA - supB; 
     });
 
     linhasDados.forEach(linha => {
-      // 0:Timestamp | 1:Mês | 2:Ano | 3:QR Code | 4:Chave | 5:Valor
+      // MAPEAMENTO:
+      // A[0]: Timestamp | B[1]: Mês | C[2]: Ano | D[3]: QR Code | E[4]: Chave Pix | F[5]: Valor | G[6]: Suplementar | H[7]: Vencimento
+      
       const mesRef = linha[1];
       const anoRef = linha[2];
-      const linkQr = linha[3];
-      const chavePix = linha[4];
+      const linkQrOriginal = linha[3]; 
+      const chavePix = linha[4]; 
       const valorBruto = linha[5];
+      const inputSuplementar = linha[6]; 
+      const dataVencimento = linha[7];   
 
       if (mesRef || valorBruto) {
         let valorNumerico = tratarValor(valorBruto); 
 
-        // QR Code
+        // 1. MÊS COMPOSTO
+        let textoMesComposto = mesRef;
+        let indiceSup = 0;
+        if (inputSuplementar && inputSuplementar.toString().trim() !== "") {
+            indiceSup = parseInt(inputSuplementar.toString().trim());
+        }
+        if (indiceSup > 0) {
+            textoMesComposto = `${mesRef} (${indiceSup})`;
+        }
+
+        // 2. LINK QR CODE
         let rtQr;
-        if (linkQr && linkQr.toString().includes("http")) {
+        if (linkQrOriginal && linkQrOriginal.toString().includes("http")) {
           rtQr = SpreadsheetApp.newRichTextValue()
             .setText("📱 Abrir")
-            .setLinkUrl(linkQr)
+            .setLinkUrl(linkQrOriginal)
             .setTextStyle(estiloLink)
             .build();
         } else {
           rtQr = SpreadsheetApp.newRichTextValue().setText("-").setTextStyle(estiloNormal).build();
         }
 
-        // Chave Pix
-        let rtChave = SpreadsheetApp.newRichTextValue().setText(chavePix || "-").setTextStyle(estiloNormal).build();
-        let rtMes = SpreadsheetApp.newRichTextValue().setText(mesRef).setTextStyle(estiloNormal).build();
+        let textoVencimento = dataVencimento || "-";
+
+        // 3. CRIAÇÃO DAS CÉLULAS
+        let rtMes = SpreadsheetApp.newRichTextValue().setText(textoMesComposto).setTextStyle(estiloNormal).build();
         let rtAno = SpreadsheetApp.newRichTextValue().setText(anoRef).setTextStyle(estiloNormal).build();
+        let rtVencimento = SpreadsheetApp.newRichTextValue().setText(textoVencimento).setTextStyle(estiloNormal).build();
+        let rtChave = SpreadsheetApp.newRichTextValue().setText(chavePix || "-").setTextStyle(estiloNormal).build();
         
-        // Valor Texto
         let textoValor = valorNumerico.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         let rtValor = SpreadsheetApp.newRichTextValue().setText(textoValor).setTextStyle(estiloNormal).build(); 
 
-        saidaRichText.push([rtMes, rtAno, rtValor, rtQr, rtChave]);
+        // 4. MONTAGEM DA LINHA FINAL
+        saidaRichText.push([rtMes, rtAno, rtVencimento, rtValor, rtQr, rtChave]);
         valoresNumericos.push([valorNumerico]);
       }
     });
   }
 
-  // --- ESCREVER NA PLANILHA ---
-  // Escreve o resultado (Seja só o cabeçalho ou o cabeçalho + dados)
+  // --- 5. ESCREVER ---
   if (saidaRichText.length > 0) {
     const numLinhas = saidaRichText.length;
     
-    // Formata Coluna Valor
-    abaDestino.getRange(1, 3, numLinhas, 1).setNumberFormat("R$ #,##0.00");
+    // Escreve as 6 colunas
+    abaDestino.getRange(1, 1, numLinhas, 6).setRichTextValues(saidaRichText);
     
-    // Escreve RichText
-    abaDestino.getRange(1, 1, numLinhas, 5).setRichTextValues(saidaRichText);
+    // Formata Valor (Coluna D = 4)
+    abaDestino.getRange(1, 4, numLinhas, 1).setNumberFormat("R$ #,##0.00");
     
-    // Sobrescreve números reais na coluna Valor
+    // Sobrescreve números
     if(valoresNumericos.length > 0){
-       abaDestino.getRange(1, 3, valoresNumericos.length, 1).setValues(valoresNumericos);
+       abaDestino.getRange(1, 4, valoresNumericos.length, 1).setValues(valoresNumericos);
     }
     
-    abaDestino.autoResizeColumns(1, 5);
+    // Alinhamentos
+    abaDestino.getRange(1, 1, numLinhas, 6).setHorizontalAlignment("center");
+    abaDestino.getRange(1, 6, numLinhas, 1).setHorizontalAlignment("left");
+    
+    abaDestino.autoResizeColumns(1, 6);
   }
 }
