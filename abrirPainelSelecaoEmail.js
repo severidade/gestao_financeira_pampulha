@@ -7,16 +7,24 @@ function abrirPainelSelecaoEmail() {
   const dados = abaAcertos.getDataRange().getValues();
   let opcoes = [];
 
-  // Começa do 1 para pular cabeçalho
   for (let i = 1; i < dados.length; i++) {
     let mesRef = dados[i][0]; 
     let ano = dados[i][1];
     let vencimento = dados[i][2]; 
+    let statusEnvio = dados[i][6]; // Coluna G
 
     if (mesRef && ano) {
       
-      // Filtro de Vencidos
-      if (isContaVencida(vencimento)) continue; 
+      // --- FILTRO INTELIGENTE (CORRIGIDO) ---
+      // 1. Converte para texto e remove espaços em branco das pontas
+      let statusLimpo = String(statusEnvio).trim();
+
+      // 2. A REGRA: Se a célula NÃO estiver vazia E NÃO for apenas um traço "-",
+      // consideramos que já foi processada (enviada/paga), então pulamos.
+      if (statusLimpo !== "" && statusLimpo !== "-") {
+        continue; // Pula para o próximo, não adiciona na lista
+      }
+      // --------------------------------------
 
       let dataVencTexto = "-";
       if (vencimento instanceof Date) {
@@ -25,18 +33,16 @@ function abrirPainelSelecaoEmail() {
       
       let textoOpcao = `${mesRef} / ${ano} (Vence: ${dataVencTexto})`;
       let valorChave = `${mesRef}|${ano}`; 
-      
-      // MUDANÇA 1: Guardamos mesRef e ano para ordenar depois
+
       opcoes.push({ 
         html: textoOpcao, 
         val: valorChave,
-        rawMes: mesRef, // Dado cru para o Score
-        rawAno: ano     // Dado cru para o Score
+        rawMes: mesRef,
+        rawAno: ano      
       });
     }
   }
-  
-  // MUDANÇA 2: Ordenação Inteligente (Score Maior pro Menor)
+
   opcoes.sort((a, b) => {
     return ordenarCobrancasPorPeriodo(b.rawMes, b.rawAno) - ordenarCobrancasPorPeriodo(a.rawMes, a.rawAno);
   });
@@ -44,11 +50,10 @@ function abrirPainelSelecaoEmail() {
   let htmlOptions = opcoes.map(op => `<option value="${op.val}">${op.html}</option>`).join("");
 
   if (htmlOptions === "") { 
-    SpreadsheetApp.getUi().alert("Não há contas em aberto (dentro do prazo) para enviar."); 
+    SpreadsheetApp.getUi().alert("Todas as cobranças pendentes já foram enviadas! ✅"); 
     return; 
   }
 
-  // (O HTML ABAIXO PERMANECE IDÊNTICO AO SEU)
   const htmlTemplate = `
     <!DOCTYPE html>
     <html>

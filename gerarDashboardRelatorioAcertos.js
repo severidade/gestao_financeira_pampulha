@@ -147,3 +147,51 @@ function gerarDashboardRelatorioAcertos() {
     .setFontSize(8).setFontStyle("italic").setFontColor("#333") 
     .setBackground("white").setHorizontalAlignment("left").setVerticalAlignment("middle").setWrap(true);          
 }
+
+/**
+ * Trigger que detecta clique na planilha
+ */
+function onSelectionChange(e) {
+  const nomeAbaRelatorio = "⭐ Dashboard Gestão";
+  const aba = e.source.getActiveSheet();
+
+  // 1. Valida se está na aba certa
+  if (aba.getName() !== nomeAbaRelatorio) return;
+
+  const range = e.range;
+  const linhaC = range.getRow();
+  const colC = range.getColumn();
+
+  // 2. Valida se o clique foi na Tabela da Direita (Resumo de Acertos)
+  // Coluna G (7) é onde fica o texto "Janeiro 2026"
+  // Deve ser da linha 3 para baixo (ignorando cabeçalho)
+  if (colC === 7 && linhaC >= 3) {
+
+    // Pega o valor da celula clicada (Ex: "Janeiro 2026")
+    const valorCel = range.getValue();
+    if (!valorCel || valorCel === "") return;
+
+    // Pega o Tipo na coluna ao lado (H - 8) (Ex: "Padrão" ou "Extra 1")
+    const valorTipo = aba.getRange(linhaC, 8).getValue();
+
+    // --- PARSEAR DADOS PARA O FORMATO CHAVE ---
+    // De: "Janeiro 2026" e "Extra 1" -> Para: "janeiro|2026|1"
+
+    const partesData = valorCel.split(" ");
+    if (partesData.length < 2) return;
+
+    const mes = partesData[0].toLowerCase();
+    const ano = partesData[1];
+
+    let indice = "0"; // Padrão
+    if (valorTipo && String(valorTipo).includes("Extra")) {
+      const match = String(valorTipo).match(/Extra\s+(\d+)/);
+      if (match) indice = match[1];
+    }
+
+    const chave = `${mes}|${ano}|${indice}`;
+
+    // 3. Chama a função de abrir o relatório
+    abrirPainelRelatorioPassivos(chave);
+  }
+}
