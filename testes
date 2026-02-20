@@ -1,0 +1,35 @@
+function processarEntradaFluxoCaixa(dados) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const nomeAbaDB = "📥 DB_Pagamentos";
+  let abaDB = ss.getSheetByName(nomeAbaDB);
+
+  // Se não existir a aba de banco de dados, cria e faz cabeçalho
+  if (!abaDB) {
+    abaDB = ss.insertSheet(nomeAbaDB);
+    abaDB.appendRow(["Carimbo", "Mês Ref", "Ano Ref", "Pessoa", "Data Pagamento", "Valor Pago", "Tipo/Obs"]);
+    abaDB.setFrozenRows(1);
+  }
+
+  const timestamp = new Date();
+  
+  // Para cada pessoa marcada no formulário, insere uma linha
+  dados.pagamentos.forEach(pgto => {
+    
+    // Tratamento de Data (vem YYYY-MM-DD do HTML)
+    let dataParts = pgto.data.split("-");
+    let dataObj = new Date(dataParts[0], dataParts[1] - 1, dataParts[2]);
+    
+    // Tratamento de Valor
+    let valorLimpo = parseFloat(String(pgto.valor).replace(/\./g, "").replace(",", "."));
+
+    abaDB.appendRow([
+      timestamp,
+      dados.mesRef, // Já vem como "Janeiro" ou "Janeiro (1)"
+      dados.anoRef,
+      pgto.pessoa,
+      dataObj,
+      valorLimpo,
+      "Manual via Painel"
+    ]);
+  });
+}
