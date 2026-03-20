@@ -30,8 +30,16 @@ Abaixo estão as definições das principais tabelas do sistema (clique para exp
 
 O ciclo financeiro do sistema segue as etapas abaixo:
 
-1.  **Entrada:** Chega a conta de Luz ➔ Você lança em *Passivos*.
-2.  **Cálculo:** O mês fecha ➔ Você define o valor do rateio em *Acertos*.
-3.  **Auditoria:** Você roda o Relatório de Conferência ➔ O script checa se *Passivos* bate com *Acertos*.
-4.  **Cobrança:** Tudo certo? ➔ Você clica em *Enviar E-mail*.
-5.  **Baixa:** O Pix cai na conta ➔ Você registra em *Fluxo de Caixa*.
+1.  **Entrada:** Chega a conta de Luz ➔ Você lança em _Passivos_.
+2.  **Cálculo:** O mês fecha ➔ Você define o valor do rateio em _Acertos_.
+3.  **Auditoria:** Você roda o Relatório de Conferência ➔ O script checa se _Passivos_ bate com _Acertos_.
+4.  **Cobrança:** Tudo certo? ➔ Você clica em _Enviar E-mail_.
+5.  **Baixa:** O Pix cai na conta ➔ Você registra em _Fluxo de Caixa_.
+
+## Métodos comuns no Google Sheets
+
+getActiveSpreadsheet() → pega a planilha atual
+getSheetByName("Nome") → acessa uma aba específica
+getRange("A1") → seleciona células
+setValue() → escreve um valor
+getValue() → lê um valor
