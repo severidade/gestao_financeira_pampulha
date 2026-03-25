@@ -13,32 +13,43 @@ function atualizarPassivosDadosBrutos() {
     abaDestino = ssDestino.insertSheet(nomeAbaDestino);
   }
 
-  // --- Sempre que Atualizar ele limpa a aga destino ---
+  // ESTILOS
+  const estilos = obterEstilosPlanilhas();
+
+  // LIMPAR
   abaDestino.clear();
+  SpreadsheetApp.flush();
 
-  // --- Pega tudo na aba origem e transforma em string --- //
   const dadosOrigem = abaOrigem.getDataRange().getDisplayValues();
-  const saida = [];
 
-  // Cria o cabeçalho do meu array bidimensional //
-  saida.push(["Mês Ref.", "Ano", "Serviço", "Valor", "Recibo", "Pago por"]);
+  const saidaRichText = [];
+
+  const valoresNumericos = [];
+
+  const titulos = ["Mês Ref.", "Ano", "Serviço", "Valor", "Recibo", "Pago por"];
+
+  const cabecalho = titulos.map((txt) =>
+    render.criarTexto(txt, estilos.cabecalho),
+  );
+  saidaRichText.push(cabecalho);
 
   if (dadosOrigem.length >= 2) {
     let linhasDados = dadosOrigem.slice(1);
 
-    // --- ORDENAÇÃO ---
+    // ORDENAÇÃO
     linhasDados.sort(function (a, b) {
       const anoA = parseInt(a[3]) || 0;
       const anoB = parseInt(b[3]) || 0;
 
+      if (anoA !== anoB) return anoA - anoB;
+
       const mesA = obterNumeroMes(a[2]);
       const mesB = obterNumeroMes(b[2]);
 
-      if (anoA !== anoB) return anoA - anoB;
       return mesA - mesB;
     });
 
-    // --- PROCESSAMENTO ---
+    // PROCESSAMENTO
     linhasDados.forEach((linha) => {
       const servico = linha[1];
       let mesRef = linha[2];
@@ -49,53 +60,42 @@ function atualizarPassivosDadosBrutos() {
       const quemPagou = linha[8] || "Rateio automático";
 
       if (servico || valorBruto) {
-        if (numSuplementar && numSuplementar.toString().trim() !== "") {
-          mesRef = mesRef + " (" + numSuplementar.toString().trim() + ")";
+        if (numSuplementar) {
+          mesRef = `${mesRef} (${numSuplementar})`;
         }
 
         const valorNumerico = tratarValor(valorBruto);
 
-        saida.push([
-          mesRef,
-          anoRef,
-          servico,
-          valorNumerico,
-          linkDoc,
-          quemPagou,
+        const textoValor = valorNumerico.toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        });
+
+        // link de recibo
+        const rtRecibo = render.criarLinkRecibo(linkDoc, estilos);
+
+        saidaRichText.push([
+          render.criarTexto(mesRef, estilos.normal),
+          render.criarTexto(anoRef, estilos.normal),
+          render.criarTexto(servico || "-", estilos.normal),
+          render.criarTexto(textoValor, estilos.normal),
+          rtRecibo,
+          render.criarTexto(quemPagou, estilos.normal),
         ]);
+
+        valoresNumericos.push([valorNumerico]);
       }
     });
   }
 
-  // --- ESCREVER DADOS ---
-  if (saida.length > 1) {
-    const numLinhas = saida.length;
-
-    const range = abaDestino.getRange(1, 1, numLinhas, 6);
-    range.setValues(saida);
-
-    // --- FORMATAR VALORES ---
-    abaDestino.getRange(2, 4, numLinhas - 1, 1).setNumberFormat("R$ #,##0.00");
-
-    // --- TRANSFORMAR LINKS EM 📄 CLICÁVEL ---
-    const colunaRecibos = 5;
-
-    for (let i = 1; i < saida.length; i++) {
-      const link = saida[i][4];
-
-      if (link && link.toString().includes("http")) {
-        const richText = SpreadsheetApp.newRichTextValue()
-          .setText("📄")
-          .setLinkUrl(link)
-          .build();
-
-        abaDestino.getRange(i + 1, colunaRecibos).setRichTextValue(richText);
-      } else {
-        abaDestino.getRange(i + 1, colunaRecibos).setValue("🤬");
-      }
-    }
-
-    abaDestino.autoResizeColumns(1, 6);
+  // ESCRITA FINAL
+  if (saidaRichText.length > 0) {
+    escreverTabelaPassivos(
+      abaDestino,
+      saidaRichText,
+      valoresNumericos,
+      estilos,
+    );
   }
 }
 
