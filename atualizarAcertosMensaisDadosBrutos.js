@@ -7,33 +7,20 @@ function atualizarAcertosMensaisDadosBrutos() {
   const abaOrigem = ssOrigem.getSheetByName(nomeAbaOrigem);
 
   const ssDestino = SpreadsheetApp.getActiveSpreadsheet();
-
   let abaDestino = ssDestino.getSheetByName(nomeAbaDestino);
 
   if (!abaDestino) {
     abaDestino = ssDestino.insertSheet(nomeAbaDestino);
   }
 
+  // MEMÓRIA
   const dadosAtuais = abaDestino.getDataRange().getValues();
   const memoriaStatus = memoriaStatusEnvioCobrancaMensal(dadosAtuais);
 
-  // --- ESTILOS ---
-  const estiloCabecalho = SpreadsheetApp.newTextStyle()
-    .setFontFamily("Jost")
-    .setUnderline(false)
-    .setForegroundColor("tomato")
-    .build();
-  const estiloNormal = SpreadsheetApp.newTextStyle()
-    .setFontFamily("Lato")
-    .setUnderline(false)
-    .setForegroundColor("black")
-    .build();
-  const estiloLink = SpreadsheetApp.newTextStyle()
-    .setUnderline(true)
-    .setForegroundColor("#1155cc")
-    .build();
+  // ESTILOS
+  const estilos = obterEstilosPlanilhas();
 
-  // --- PASSO 2: APAGAR TUDO (Agora é seguro, pois já memorizamos) ---
+  // LIMPAR
   abaDestino.clear();
   SpreadsheetApp.flush();
 
@@ -52,18 +39,16 @@ function atualizarAcertosMensaisDadosBrutos() {
     "Status Envio",
   ];
 
-  // aqui
+  // CABEÇALHO
   const cabecalho = titulos.map((txt) =>
-    SpreadsheetApp.newRichTextValue()
-      .setText(txt)
-      .setTextStyle(estiloCabecalho)
-      .build(),
+    render.criarTexto(txt, estilos.cabecalho),
   );
   saidaRichText.push(cabecalho);
 
   if (dadosOrigem.length >= 2) {
     let linhasDados = dadosOrigem.slice(1);
 
+    // ORDENAÇÃO
     linhasDados.sort(function (a, b) {
       const anoA = parseInt(a[2]) || 0;
       const anoB = parseInt(b[2]) || 0;
@@ -78,6 +63,7 @@ function atualizarAcertosMensaisDadosBrutos() {
       return supA - supB;
     });
 
+    // PROCESSAMENTO
     linhasDados.forEach((linha) => {
       const mesRef = linha[1];
       const anoRef = linha[2];
@@ -88,106 +74,55 @@ function atualizarAcertosMensaisDadosBrutos() {
       const chavePix = linha[7];
 
       if (mesRef || valorBruto) {
-        let valorNumerico = tratarValor(valorBruto);
+        const valorNumerico = tratarValor(valorBruto);
 
         let textoMesComposto = mesRef;
         let indiceSup = 0;
+
         if (inputSuplementar && inputSuplementar.toString().trim() !== "") {
           indiceSup = parseInt(inputSuplementar.toString().trim());
         }
+
         if (indiceSup > 0) {
           textoMesComposto = `${mesRef} (${indiceSup})`;
         }
 
-        let rtQr;
-        if (linkQrOriginal && linkQrOriginal.toString().includes("http")) {
-          rtQr = SpreadsheetApp.newRichTextValue()
-            .setText("📱 Abrir")
-            .setLinkUrl(linkQrOriginal)
-            .setTextStyle(estiloLink)
-            .build();
-        } else {
-          rtQr = SpreadsheetApp.newRichTextValue()
-            .setText("-")
-            .setTextStyle(estiloNormal)
-            .build();
-        }
+        const chaveAtual = `${textoMesComposto}|${anoRef}`;
 
-        // ========================================================
-        // 🛡️ PASSO 3: RESTAURAR O STATUS
-        // ========================================================
         let statusParaGravar = "-";
-        let chaveAtual = `${textoMesComposto}|${anoRef}`;
-
-        // Verifica se tem algo guardado para este Mês/Ano
         if (chaveAtual in memoriaStatus) {
           statusParaGravar = memoriaStatus[chaveAtual];
         }
-        // ========================================================
 
-        let textoVencimento = dataVencimento || "-";
-
-        let rtMes = SpreadsheetApp.newRichTextValue()
-          .setText(textoMesComposto)
-          .setTextStyle(estiloNormal)
-          .build();
-        let rtAno = SpreadsheetApp.newRichTextValue()
-          .setText(anoRef)
-          .setTextStyle(estiloNormal)
-          .build();
-        let rtVencimento = SpreadsheetApp.newRichTextValue()
-          .setText(textoVencimento)
-          .setTextStyle(estiloNormal)
-          .build();
-        let rtChave = SpreadsheetApp.newRichTextValue()
-          .setText(chavePix || "-")
-          .setTextStyle(estiloNormal)
-          .build();
-        let textoValor = valorNumerico.toLocaleString("pt-BR", {
+        const textoValor = valorNumerico.toLocaleString("pt-BR", {
           style: "currency",
           currency: "BRL",
         });
-        let rtValor = SpreadsheetApp.newRichTextValue()
-          .setText(textoValor)
-          .setTextStyle(estiloNormal)
-          .build();
 
-        // Coluna G: Grava o que recuperamos da memória
-        let rtStatus = SpreadsheetApp.newRichTextValue()
-          .setText(statusParaGravar)
-          .setTextStyle(estiloNormal)
-          .build();
+        const rtQr = render.criarLink(linkQrOriginal, estilos);
 
         saidaRichText.push([
-          rtMes,
-          rtAno,
-          rtVencimento,
-          rtValor,
+          render.criarTexto(textoMesComposto, estilos.normal),
+          render.criarTexto(anoRef, estilos.normal),
+          render.criarTexto(dataVencimento || "-", estilos.normal),
+          render.criarTexto(textoValor, estilos.normal),
           rtQr,
-          rtChave,
-          rtStatus,
+          render.criarTexto(chavePix || "-", estilos.normal),
+          render.criarTexto(statusParaGravar, estilos.normal),
         ]);
+
         valoresNumericos.push([valorNumerico]);
       }
     });
   }
 
-  // --- ESCREVER NA PLANILHA ---
+  // ESCRITA FINAL
   if (saidaRichText.length > 0) {
-    const numLinhas = saidaRichText.length;
-
-    abaDestino.getRange(1, 1, numLinhas, 7).setRichTextValues(saidaRichText);
-    abaDestino.getRange(1, 4, numLinhas, 1).setNumberFormat("R$ #,##0.00");
-
-    if (valoresNumericos.length > 0) {
-      abaDestino
-        .getRange(1, 4, valoresNumericos.length, 1)
-        .setValues(valoresNumericos);
-    }
-
-    abaDestino.getRange(1, 1, numLinhas, 7).setHorizontalAlignment("center");
-    abaDestino.getRange(1, 6, numLinhas, 1).setHorizontalAlignment("left");
-
-    abaDestino.autoResizeColumns(1, 7);
+    escreverTabelaAcertoMensal(
+      abaDestino,
+      saidaRichText,
+      valoresNumericos,
+      estilos,
+    );
   }
 }
