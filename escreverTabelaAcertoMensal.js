@@ -22,8 +22,11 @@ function escreverTabelaAcertoMensal(
       .setValues(valoresNumericos);
   }
 
-  abaDestino.getRange(1, 1, numLinhas, 7).setHorizontalAlignment("center");
-  abaDestino.getRange(1, 6, numLinhas, 1).setHorizontalAlignment("left");
-
+  // Formatação
+  abaDestino.getRange(1, 1, numLinhas, 7).setHorizontalAlignment("left"); // Toda Tabela
+  abaDestino.getRange(1, 1, numLinhas, 7).setVerticalAlignment("middle"); // Toda a Tabela
+  abaDestino.getRange(1, 5, numLinhas, 1).setHorizontalAlignment("center"); // QR Code
+  abaDestino.setColumnWidth(6, 600); //chave pix
+  abaDestino.getRange(1, 6, numLinhas, 1).setWrap(true); // chave pix (wrap)
   abaDestino.autoResizeColumns(1, 7);
 }
