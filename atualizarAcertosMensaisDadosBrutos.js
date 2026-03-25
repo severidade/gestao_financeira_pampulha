@@ -7,43 +7,21 @@ function atualizarAcertosMensaisDadosBrutos() {
   const abaOrigem = ssOrigem.getSheetByName(nomeAbaOrigem);
 
   const ssDestino = SpreadsheetApp.getActiveSpreadsheet();
+
   let abaDestino = ssDestino.getSheetByName(nomeAbaDestino);
 
   if (!abaDestino) {
     abaDestino = ssDestino.insertSheet(nomeAbaDestino);
   }
 
-  // ============================================================
-  // 🛡️ PASSO 1: ATIVAR A MEMÓRIA (ANTES DE APAGAR)
-  // Nesta aba de acertos Mensais é gravado o status de envio que serve para identificar se uma cobrança foi enviada por e-mail
-  // Por esse motivo antes de atualizar a tabela salvo na constante memoriaStatus o s valores
-  // ============================================================
-  const memoriaStatus = {};
-
-  // Pega todos os dados que estão na planilha AGORA
   const dadosAtuais = abaDestino.getDataRange().getValues();
-
-  // Se tiver dados (mais que 1 linha), vamos memorizar
-  if (dadosAtuais.length > 1) {
-    for (let i = 1; i < dadosAtuais.length; i++) {
-      let mesChave = String(dadosAtuais[i][0]).trim(); // Coluna A (Ex: Janeiro (1))
-      let anoChave = String(dadosAtuais[i][1]).trim(); // Coluna B (Ex: 2026)
-      let status = dadosAtuais[i][6]; // Coluna G (Onde você escreveu ✅ Pago)
-
-      // Se tiver algo escrito na Coluna G, guarda no "bolso" do script
-      if (mesChave && anoChave && status !== "") {
-        let chaveUnica = `${mesChave}|${anoChave}`;
-        memoriaStatus[chaveUnica] = status;
-      }
-    }
-  }
-  // ============================================================
+  const memoriaStatus = memoriaStatusEnvioCobrancaMensal(dadosAtuais);
 
   // --- ESTILOS ---
   const estiloCabecalho = SpreadsheetApp.newTextStyle()
     .setFontFamily("Jost")
     .setUnderline(false)
-    .setForegroundColor("wite")
+    .setForegroundColor("tomato")
     .build();
   const estiloNormal = SpreadsheetApp.newTextStyle()
     .setFontFamily("Lato")
@@ -141,8 +119,8 @@ function atualizarAcertosMensaisDadosBrutos() {
         let statusParaGravar = "-";
         let chaveAtual = `${textoMesComposto}|${anoRef}`;
 
-        // Verifica se temos algo guardado para este Mês/Ano
-        if (memoriaStatus[chaveAtual]) {
+        // Verifica se tem algo guardado para este Mês/Ano
+        if (chaveAtual in memoriaStatus) {
           statusParaGravar = memoriaStatus[chaveAtual];
         }
         // ========================================================
