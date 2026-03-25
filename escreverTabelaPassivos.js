@@ -24,10 +24,11 @@ function escreverTabelaPassivos(abaDestino, dados, valoresNumericos, estilos) {
       .setValues(valoresNumericos);
   }
 
-  //alinhamento
-  abaDestino.getRange(1, 1, numLinhas, 6).setHorizontalAlignment("left");
-  abaDestino.getRange(1, 4, numLinhas, 1).setHorizontalAlignment("right");
-  abaDestino.getRange(1, 5, numLinhas, 1).setHorizontalAlignment("center");
+  //alinhamento Coluna
+  abaDestino.getRange(1, 1, numLinhas, 6).setHorizontalAlignment("left"); // Toda a Tabela
+  abaDestino.getRange(1, 4, numLinhas, 1).setHorizontalAlignment("right"); // valor
+  abaDestino.getRange(1, 5, numLinhas, 1).setHorizontalAlignment("center"); // Recibo
 
-  abaDestino.autoResizeColumns(1, 6);
+  // Alinhamento vertical
+  abaDestino.getRange(1, 1, numLinhas, 6).setVerticalAlignment("middle"); // Toda a Tabela
 }

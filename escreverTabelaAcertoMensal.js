@@ -22,11 +22,21 @@ function escreverTabelaAcertoMensal(
       .setValues(valoresNumericos);
   }
 
-  // Formatação
-  abaDestino.getRange(1, 1, numLinhas, 7).setHorizontalAlignment("left"); // Toda Tabela
+  // Alinhamento coluna
+  abaDestino.getRange(1, 1, numLinhas, 1).setHorizontalAlignment("left"); // Mês
+  abaDestino.getRange(1, 2, numLinhas, 2).setHorizontalAlignment("center"); // Ano + Vencimento
+  abaDestino.getRange(1, 4, numLinhas, 1).setHorizontalAlignment("right"); // Valor
+  abaDestino.getRange(1, 5, numLinhas, 1).setHorizontalAlignment("center"); // QR
+  abaDestino.getRange(1, 6, numLinhas, 1).setHorizontalAlignment("left"); // Pix
+  abaDestino.getRange(1, 7, numLinhas, 1).setHorizontalAlignment("center"); // Status
+
+  // Alinhamento vertical
   abaDestino.getRange(1, 1, numLinhas, 7).setVerticalAlignment("middle"); // Toda a Tabela
-  abaDestino.getRange(1, 5, numLinhas, 1).setHorizontalAlignment("center"); // QR Code
-  abaDestino.setColumnWidth(6, 600); //chave pix
-  abaDestino.getRange(1, 6, numLinhas, 1).setWrap(true); // chave pix (wrap)
-  abaDestino.autoResizeColumns(1, 7);
+
+  // Largura coluna
+  abaDestino.setColumnWidth(6, 600); // Codigo pix
+
+  // WRAP
+  abaDestino.getRange(1, 6, numLinhas, 1).setWrap(true); // Chave Pix
+  abaDestino.getRange(1, 7, numLinhas, 1).setWrap(true); // Status
 }
