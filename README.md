@@ -43,3 +43,9 @@ getSheetByName("Nome") → acessa uma aba específica
 getRange("A1") → seleciona células
 setValue() → escreve um valor
 getValue() → lê um valor
+
+## Funções para cadastramento de fluxo de caixa
+
+abrirPainelBaixaPagamentos
+processarEntradaFluxoCaixa
+gerarDashboardFluxoCaixa

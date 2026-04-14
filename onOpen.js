@@ -5,6 +5,7 @@ function onOpen() {
     // --- 1. CADASTROS (Entrada de Dados) ---
     .addItem("💸 Cadastrar Passivo", "abrirFormularioPassivos")
     .addItem("🤝 Cadastrar Acerto Mensal", "abrirFormularioAcerto")
+    .addItem("💰 Cadastrar Fluxo de Caixa", "abrirPainelBaixaPagamentos")
     .addSeparator()
 
     // --- 2. ATUALIZAÇÕES (Processamento de Dados) ---
@@ -27,8 +28,6 @@ function onOpen() {
     .addItem("📧 E-mail Cobrança", "abrirPainelSelecaoEmail")
     // .addSeparator()
 
-    // --- 5. AÇÕES FINAIS (Comunicação) ---
-    // .addItem('💰 Fluxo Caixa Lancamento', 'abrirPainelBaixaPagamentos')
     .addToUi();
 }
 

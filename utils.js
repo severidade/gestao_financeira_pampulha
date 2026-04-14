@@ -23,7 +23,7 @@ function obterNumeroMes(nomeMes) {
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, ""); // Remove acentos (ex: março -> marco)
+    .replace(/[\u0300-\u036f]/g, ""); // Remove cedilha (ex: março -> marco)
 
   const mapa = {
     janeiro: 1,
